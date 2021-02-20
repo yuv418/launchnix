@@ -28,6 +28,7 @@ more things here
     {config, pkgs, ...}:
 
     {
+        services.nginx.enable = true;
 
     };
 

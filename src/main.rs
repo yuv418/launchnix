@@ -2,6 +2,7 @@
 mod nix;
 mod vm;
 mod image;
+mod morph;
 
 fn main() {
     let o_xml = r#"
@@ -26,8 +27,10 @@ fn main() {
 
      // println!("document now is: {}", xml::merge_xml(o_xml, to_merge_xml, "a"));
 
-    let vm = vm::VM::from_nixfile("examples/example-deployment.nix");
+    let vm = vm::VM::from_nixfile("./examples/example-deployment.nix");
     vm.apply();
+
+
 
     // println!("{}", );
 

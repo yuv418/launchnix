@@ -16,6 +16,7 @@ use std::io::prelude::*;
 
 use crate::nix;
 use crate::image;
+use crate::morph;
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -26,11 +27,15 @@ pub struct VM {
     name: String,
     ssh_pub_key_path: String,
     ssh_priv_key_path: String,
+
+    #[serde(skip)]
+    file_path: String
 }
 
 impl VM {
     pub fn from_nixfile(file_path: &str) -> Self {
         let mut vmparams: Self = nix::from_nixfile(file_path);
+        vmparams.file_path = file_path.to_string();
 
         vmparams.extra_config = format!("<domain>{}</domain>", vmparams.extra_config.replace("\\\\", "\\")); // Wrap config in domain tags and unescape \ns (because nix eval does weird things)
         vmparams
@@ -105,9 +110,10 @@ impl VM {
                 println!("Found IP: {}", sship);
 
 
+                println!("{:?}", morph::exec_morph(&sship, &self.ssh_pub_key_path, &self.file_path));
                 // Create SSH session
 
-                let mut sshsess = Session::new().unwrap();
+                /*let mut sshsess = Session::new().unwrap();
 
                 sshsess.set_tcp_stream(TcpStream::connect(sship.to_owned() + ":22").unwrap());
                 sshsess.handshake().unwrap();
@@ -119,7 +125,7 @@ impl VM {
                 channel.read_to_string(&mut s).unwrap();
                 println!("{}", s);
                 channel.wait_close();
-                println!("{}", channel.exit_status().unwrap());
+                println!("{}", channel.exit_status().unwrap());*/
 
             }
 

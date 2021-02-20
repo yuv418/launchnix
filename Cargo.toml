@@ -14,3 +14,4 @@ virt = { git = "https://gitlab.com/libvirt/libvirt-rust/" } # *sigh
 format_xml = "0.2"
 ssh2 = "0.9"
 ergo_fs = "0.2"
+rand = "0.8"
