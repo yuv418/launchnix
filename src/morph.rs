@@ -59,7 +59,7 @@ pub fn exec_morph(ip: &str, ssh_pubkey: &str, deployment_file_path: &str) -> Res
 
     build.wait().expect("failed");
 
-    // fs::remove_file(temp_nix)?;
+    fs::remove_file(temp_nix)?;
 
     Ok(())
 
