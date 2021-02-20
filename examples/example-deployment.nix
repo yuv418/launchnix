@@ -14,6 +14,8 @@
 </devices>
 '';
         name = "test";
+        sshPubKeyPath = "~/.ssh/id_rsa.pub";
+        sshPrivKeyPath = "~/.ssh/id_rsa";
     };
 foo = {
   baz = ''

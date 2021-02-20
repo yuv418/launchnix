@@ -1,14 +1,15 @@
 # Copied from https://gist.github.com/tarnacious/f9674436fff0efeb4bb6585c79a3b9ff
 
-{ config, lib, pkgs, ... }:
+sshKeyPath: { config, lib, pkgs, ... }:
 
 with lib;
 
 {
+
   imports =
-    [
-      ./hwconfig.nix
-    ];
+  [
+    ( (import ./hwconfig-build.nix) sshKeyPath)
+  ];
 
   system.build.qcow2 = import <nixpkgs/nixos/lib/make-disk-image.nix> {
     inherit lib config;
@@ -20,6 +21,7 @@ with lib;
       ''
         {
           imports = [ ./hwconfig.nix ];
+
         }
       '';
 
