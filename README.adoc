@@ -25,9 +25,9 @@ The implementation of things in Launchnix will probably not be very good.
 This is a list of semi-detailed steps that need to be done for the project to be functional.
 
 * [x] Build NixOS images
-* [ ] Copy NixOS image to user-defined libvirt storage pool
-* [ ] Upload user-defined ssh keys and unset root passwords
-* [ ] Load deployment into morph and deploy 
-* [ ] Detect changes in the libvirt configuration (state file?). If there are changes, shut down the domain, redefine the XML, and redeploy libvirt.
+* [x] Copy NixOS image to user-defined libvirt storage pool
+* [x] Upload user-defined ssh keys and unset root passwords (This was implemented differently but it works)
+* [x] Load deployment into morph and deploy
+* [x] Detect changes in the libvirt configuration (state file?). If there are changes, shut down the domain, redefine the XML, and redeploy libvirt.
 * [ ] Integration with `sudo nixos-rebuild switch`
-
+* [ ] Honor SSH key preferences in deployment file

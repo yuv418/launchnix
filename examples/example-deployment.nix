@@ -2,7 +2,7 @@
     deployment =
     {
         cpus = 4;
-        ram = 8192;
+        ram = 2048;
         extraConfig = ''
         <devices>
             <serial type="pty"/>
@@ -17,5 +17,6 @@
     machine = {config, pkgs, lib, ...}:
     {
         services.nginx.enable = true;
+        services.k3s.enable = true;
     };
 }
