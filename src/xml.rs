@@ -34,7 +34,12 @@ fn _merge(mut original: &mut NodePtr, new: NodePtr, parent_xpath: &str) {
                     if let Some(replace_node) = original.get_first_node(&child_xpath) {
                         //println!("child xpath finder {:#?}", original.get_first_node(&child_xpath));
                         // println!("Here");
-                        replace_node.replace_with(&child); // Replace original node with this node
+
+                        // Disallow overwriting blank nodes, since that would be silly
+
+                        if child.children()[0].inner_xml() != "" {
+                            replace_node.replace_with(&child); // Replace original node with this node
+                        }
                     }
                 }
             }

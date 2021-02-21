@@ -21,7 +21,6 @@ with lib;
     boot.loader.grub.device = "/dev/vda";
     boot.loader.timeout = 0;
 
-
     services.openssh.enable = true;
     services.openssh.permitRootLogin = "prohibit-password";
 

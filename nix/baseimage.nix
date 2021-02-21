@@ -8,8 +8,10 @@ with lib;
 
   imports =
   [
-    ( (import ./hwconfig-build.nix) sshKeyPath)
+    ./hwconfig.nix
   ];
+
+  users.users.root.openssh.authorizedKeys.keys = [ (builtins.readFile sshKeyPath) ];
 
   system.build.qcow2 = import <nixpkgs/nixos/lib/make-disk-image.nix> {
     inherit lib config;
