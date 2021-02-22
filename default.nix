@@ -31,7 +31,7 @@ let
             installPhase = drv.installPhase + ''
                 mv $bin/bin/launchnix $bin/bin/launchnix-bin
                 echo "#!/bin/sh" >> $bin/bin/launchnix
-                echo MORPH_PATH=${pkgs.morph}/bin/morph $bin/bin/launchnix-bin >> $bin/bin/launchnix
+                echo MORPH_PATH=${pkgs.morph}/bin/morph exec \"$bin/bin/launchnix-bin\" \"\$\@\" >> $bin/bin/launchnix
                 chmod +x $bin/bin/launchnix
                 cp -r $src/nix $bin/bin/
             '';
