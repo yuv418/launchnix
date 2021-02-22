@@ -17,6 +17,5 @@
     machine = {config, pkgs, lib, ...}:
     {
         services.nginx.enable = true;
-        services.k3s.enable = true;
     };
 }

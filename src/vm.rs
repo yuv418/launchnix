@@ -211,6 +211,9 @@ impl VM {
             }
             else {
                 println!("No configuration changes detected. Starting morph...");
+                if (!dom.is_active()?) { // TODO offload to dom IP?
+                    dom.create();
+                }
             }
 
             println!("{:?}", morph::exec_morph(&self.dom_ip(&dom)?, &self.ssh_pub_key_path, &self.file_path));

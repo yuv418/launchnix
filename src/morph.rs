@@ -54,6 +54,7 @@ pub fn exec_morph(ip: &str, ssh_pubkey: &str, deployment_file_path: &str) -> Res
         .arg(temp_nix.to_str().unwrap())
         .arg("switch")
         .env("SSH_USER", "root") // VMs do this by default*/
+        .env("SSH_SKIP_HOST_KEY_CHECK", "1") // VMs do this by default*/
         .spawn()
         .unwrap();
 
