@@ -29,7 +29,7 @@ let
                 pkgs.libvirt
             ];
             installPhase = drv.installPhase + ''
-                cp -r $src/nix $out/bin/
+                cp -r $src/nix $bin/bin/
             '';
           };
       })
