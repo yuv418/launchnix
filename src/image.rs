@@ -8,6 +8,10 @@ pub fn build_image(ssh_pubkey: &str) -> Result<String, ExpandError> {
     // nix-build '<nixpkgs/nixos>' -A config.system.build.qcow2 -I nixos-config=./baseimage.nix
 
     let abspath_ssh_pubkey = expand(ssh_pubkey)?;
+    let mut baseimage_abspath = env::current_exe().unwrap();
+    baseimage_abspath.pop();
+    baseimage_abspath.push("nix/baseimage.nix");
+
 
     let mut build = Command::new("nix-build")
         .arg("<nixpkgs/nixos>")
@@ -15,7 +19,7 @@ pub fn build_image(ssh_pubkey: &str) -> Result<String, ExpandError> {
         .arg("config.system.build.qcow2")
         .arg("--arg")
         .arg("configuration")
-        .arg(&format!("{{ imports = [ (import ./nix/baseimage.nix \"{}\") ]; }}", abspath_ssh_pubkey))
+        .arg(&format!("{{ imports = [ (import {} \"{}\") ]; }}", baseimage_abspath.to_str().unwrap(), abspath_ssh_pubkey)) // TODO replace baseimage with an absolute path
         .spawn()
         .unwrap();
 
