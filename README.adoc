@@ -20,6 +20,19 @@ I'm not very good with Nix/NixOS yet (or Rust, but I'm slightly more experience 
 The implementation of things in Launchnix will probably not be very good.
 ====
 
+=== Installation
+
+In `environment.systemPackages` in your `configuration.nix`, add 
+
+[nix]
+----
+environment.systemPackages = with pkgs; [
+    # Other things
+    (import "${(builtins.fetchTarball "https://github.com/cdknight/launchnix/archive/master.tar.gz")}" {}).launchnix
+];
+----
+
+
 === Implementation Checklist
 
 This is a list of semi-detailed steps that need to be done for the project to be functional.
