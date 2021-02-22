@@ -41,5 +41,5 @@ let
     localPatterns = [ ''^(src|nix)(/.*)?'' ''[^/]*\.(rs|toml)$'' ];
   };
 in {
-    launchnix = (rustPkgs.workspace.launchnix {});
+    launchnix = rustPkgs.workspace.launchnix {};
 }
