@@ -47,14 +47,7 @@ pub fn exec_morph(ip: &str, ssh_pubkey: &str, deployment_file_path: &str) -> Res
     temp_nix.push(temp_nix_filename);
     fs::write(&temp_nix, tomorph_string)?;
 
-    let mut morph_path = "morph".to_owned();
-
-    if let Ok(envmorph) = env::var("MORPH_PATH") {
-        morph_path = envmorph;
-    }
-
-
-    let mut build = Command::new(morph_path)
+    let mut build = Command::new("morph")
         .arg("deploy")
         .arg("--upload-secrets")
         .arg(temp_nix.to_str().unwrap())

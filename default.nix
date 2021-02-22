@@ -1,4 +1,4 @@
-{
+args@{
   system ? builtins.currentSystem,
   nixpkgsMozilla ? builtins.fetchGit {
     url = https://github.com/mozilla/nixpkgs-mozilla;
@@ -9,6 +9,7 @@
     ref = "master";
   },
 }:
+
 let
   rustOverlay = import "${nixpkgsMozilla}/rust-overlay.nix";
   cargo2nixOverlay = import "${cargo2nix}/overlay";
@@ -25,14 +26,13 @@ let
       (pkgs.rustBuilder.rustLib.makeOverride {
           name = "launchnix";
           overrideAttrs = drv: {
+            buildInputs = drv.buildInputs ++ [ pkgs.makeWrapper ];
             propagatedNativeBuildInputs = drv.propagatedNativeBuildInputs or [ ] ++ [
                 pkgs.libvirt
             ];
             installPhase = drv.installPhase + ''
                 mv $bin/bin/launchnix $bin/bin/launchnix-bin
-                echo "#!/bin/sh" >> $bin/bin/launchnix
-                echo MORPH_PATH=${pkgs.morph}/bin/morph exec \"$bin/bin/launchnix-bin\" \"\$\@\" >> $bin/bin/launchnix
-                chmod +x $bin/bin/launchnix
+                makeWrapper $bin/bin/launchnix-bin $bin/bin/launchnix --set PATH ${ pkgs.lib.makeBinPath [ pkgs.morph pkgs.nix ] }
                 cp -r $src/nix $bin/bin/
             '';
           };
