@@ -44,3 +44,4 @@ This is a list of semi-detailed steps that need to be done for the project to be
 * [x] Detect changes in the libvirt configuration (state file?). If there are changes, shut down the domain, redefine the XML, and redeploy libvirt.
 * [ ] Integration with `sudo nixos-rebuild switch`
 * [ ] Honor SSH key preferences in deployment file
+* [x] Static IPs

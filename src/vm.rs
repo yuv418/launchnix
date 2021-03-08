@@ -1,34 +1,25 @@
-use serde::Deserialize;
-use format_xml::xml;
 use amxml::dom::*;
+use format_xml::xml;
+use serde::Deserialize;
 
-use virt::{
-    error,
-    connect::Connect,
-    storage_pool::StoragePool,
-    domain::{
-        Domain, VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE, VIR_DOMAIN_NONE
-    },
-};
 use std::{
-    fs,
-    thread,
-    time,
-    fs::Permissions,
-    io::prelude::*,
-    net::TcpStream,
-    os::unix::fs::PermissionsExt,
     collections::hash_map::DefaultHasher,
-    hash::{
-        Hash, Hasher
-    },
-
+    fs,
+    fs::Permissions,
+    hash::{Hash, Hasher},
+    io::prelude::Write,
+    os::unix::fs::PermissionsExt,
+};
+use virt::{
+    connect::Connect,
+    domain::{Domain, VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE, VIR_DOMAIN_NONE},
+    error,
+    storage_pool::StoragePool,
 };
 
-
-use crate::nix;
 use crate::image;
 use crate::morph;
+use crate::nix;
 use crate::xml::merge_xml;
 
 #[derive(Default, Debug, Deserialize, Hash)]
@@ -41,6 +32,9 @@ pub struct VM {
     ssh_pub_key_path: String,
     ssh_priv_key_path: String,
 
+    #[serde(rename = "staticIPs")] // Serde won't rename this one for me, unfortunately
+    static_ips: Option<Vec<String>>,
+
     #[serde(default = "default_storage_pool_name")]
     storage_pool_name: String,
 
@@ -48,28 +42,36 @@ pub struct VM {
     file_path: String,
 
     #[serde(skip)]
-    image_path: String
+    image_path: String,
 }
-fn default_storage_pool_name() -> String { "default".to_owned() }
+fn default_storage_pool_name() -> String {
+    "default".to_owned()
+}
 
 impl VM {
     pub fn from_nixfile(file_path: &str) -> Self {
         let mut vmparams: Self = nix::from_nixfile(file_path);
         vmparams.file_path = file_path.to_string();
 
-        vmparams.extra_config = format!("<domain type=\"kvm\">{}</domain>", vmparams.extra_config.replace("\\\\", "\\")); // Wrap config in domain tags and unescape \ns (because nix eval does weird things)
+        vmparams.extra_config = format!(
+            "<domain type=\"kvm\">{}</domain>",
+            vmparams.extra_config.replace("\\\\", "\\")
+        ); // Wrap config in domain tags and unescape \ns (because nix eval does weird things)
         vmparams
     }
 
-    fn hash_self(&self) -> u64 { // borrowed from https://doc.rust-lang.org/std/hash/index.html
+    fn hash_self(&self) -> u64 {
+        // borrowed from https://doc.rust-lang.org/std/hash/index.html
         let mut defhasher = DefaultHasher::new();
         self.hash(&mut defhasher);
         defhasher.finish()
     }
 
-    fn copy_build_image(&mut self, conn: &Connect) -> Result<(), Box<dyn std::error::Error + 'static>> {
+    fn copy_build_image(
+        &mut self,
+        conn: &Connect,
+    ) -> Result<(), Box<dyn std::error::Error + 'static>> {
         let oqcow2 = image::build_image(&self.ssh_pub_key_path).unwrap();
-
 
         self.image_path = self.deployment_image_path(conn)?;
 
@@ -84,37 +86,52 @@ impl VM {
 
     fn deployment_image_path(&self, conn: &Connect) -> Result<String, Box<std::error::Error>> {
         let spool = StoragePool::lookup_by_name(conn, &self.storage_pool_name)?;
-        let spool = new_document(&spool.get_xml_desc(virt::storage_pool::STORAGE_POOL_CREATE_NORMAL)?).unwrap(); // Load into amxml and then get xpath /pool/target/path
+        let spool =
+            new_document(&spool.get_xml_desc(virt::storage_pool::STORAGE_POOL_CREATE_NORMAL)?)
+                .unwrap(); // Load into amxml and then get xpath /pool/target/path
 
         if let Some(spool) = spool.get_first_node("//pool/target/path") {
             return Ok(spool.inner_xml() + &format!("/{}.qcow2", self.name));
         }
 
-        Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Failed to get storage pool path")))
+        Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Failed to get storage pool path",
+        )))
     }
 
     fn dom_uuid(&self, dom: &Domain) -> Result<String, Box<std::error::Error>> {
         let domxml = new_document(&dom.get_xml_desc(VIR_DOMAIN_NONE)?)?;
         if let Some(uuid) = domxml.get_first_node("//domain/uuid") {
-            return Ok(uuid.inner_xml())
+            return Ok(uuid.inner_xml());
         }
 
-        Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Failed to get UUID")))
+        Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Failed to get UUID",
+        )))
     }
 
-    fn dom_deployment_hash(&self, dom: &Domain) -> Result<u64, Box<std::error::Error>> { // :( repeated code
+    fn dom_deployment_hash(&self, dom: &Domain) -> Result<u64, Box<std::error::Error>> {
+        // :( repeated code
         let domxml = new_document(&dom.get_xml_desc(VIR_DOMAIN_NONE)?)?;
         if let Some(uuid) = domxml.get_first_node("//domain/metadata/launchnix:deploymentXMLHash") {
-            return Ok(uuid.inner_xml().parse()?) // Bad
+            return Ok(uuid.inner_xml().parse()?); // Bad
         }
 
-        Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Failed to get deployment hash")))
+        Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Failed to get deployment hash",
+        )))
     }
 
-    pub fn apply_xml(&self, conn: &Connect, domopt: Option<Domain>) -> Result<Domain, Box<dyn std::error::Error>> {
+    pub fn apply_xml(
+        &self,
+        conn: &Connect,
+        domopt: Option<Domain>,
+    ) -> Result<Domain, Box<dyn std::error::Error>> {
         // TODO implement for running domains
         // UUID must be set to patch an existing domain
-
 
         let base_xml = xml! {
             <domain type="kvm">
@@ -173,7 +190,8 @@ impl VM {
         Ok(dom)
     }
 
-    pub fn dom_ip(&self, dom: &Domain) -> Result<String, Box<std::error::Error>> { // Blocking function to receive domain IP
+    pub fn dom_ip(&self, dom: &Domain) -> Result<String, Box<std::error::Error>> {
+        // Blocking function to receive domain IP
         let mut iaddrs = dom.interface_addresses(VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE, 0)?;
         while iaddrs.len() == 0 {
             // thread::sleep(time::Duration::from_secs(3)); // TODO maybe change this
@@ -183,45 +201,50 @@ impl VM {
         Ok(iaddrs[0].addrs[0].addr.clone()) // First IP, TODO add more control here?
     }
 
-
-    pub fn apply(&mut self) -> Result<(), Box<std::error::Error + 'static>>{
+    pub fn apply(&mut self) -> Result<(), Box<std::error::Error + 'static>> {
         // TODO use other connections if specified by the user
         let mut conn = Connect::open("qemu:///system")?;
         let domlookup = Domain::lookup_by_name(&conn, &self.name);
+        let mut sship = String::new();
 
-        if let Err(error::Error { .. }) = domlookup { // Only create a new domain if it doesn't exist.
+        if let Err(error::Error { .. }) = domlookup {
+            // Only create a new domain if it doesn't exist.
             self.copy_build_image(&conn)?;
             let dom = self.apply_xml(&conn, None)?;
 
             println!("DEBUG: STARTED VM; Waiting for domain IP...");
-
-            let sship = self.dom_ip(&dom)?;
-
+            sship = self.dom_ip(&dom)?;
             println!("Found IP: {}", sship);
-            println!("{:?}", morph::exec_morph(&sship, &self.ssh_pub_key_path, &self.file_path));
-
-        }
-        else if let Ok(mut dom) = domlookup {
+        } else if let Ok(mut dom) = domlookup {
             // Domain already exists, apply XML and morph.
             self.image_path = self.deployment_image_path(&conn)?;
             if self.dom_deployment_hash(&dom)? != self.hash_self() {
                 println!("Configuration change detected. Applying VM changes...");
                 dom = self.apply_xml(&conn, Some(dom))?;
                 println!("Waiting for IP...");
-            }
-            else {
+            } else {
                 println!("No configuration changes detected. Starting morph...");
-                if (!dom.is_active()?) { // TODO offload to dom IP?
+                if !dom.is_active()? {
+                    // TODO offload to dom IP?
                     dom.create();
                 }
+                sship = self.dom_ip(&dom)?;
             }
-
-            println!("{:?}", morph::exec_morph(&self.dom_ip(&dom)?, &self.ssh_pub_key_path, &self.file_path));
-
         }
+
+        // Execute morph here
+        // Overwrite SSH IP if the user set a static IP
+
+        println!(
+            "{:?}",
+            morph::exec_morph(
+                &sship,
+                &self.ssh_pub_key_path,
+                &self.file_path,
+                &self.static_ips
+            )
+        );
 
         Ok(())
     }
-
-
 }

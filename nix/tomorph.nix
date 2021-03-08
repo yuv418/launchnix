@@ -1,5 +1,5 @@
 let
-  launchnixDeployment = import deploymentPath; # Will get replaced by rust
+  launchnixDeployment = import {{ deployment_abspath }}; # Will get replaced by rust
   pkgs = import <nixpkgs> {};
 in
 {
@@ -9,14 +9,26 @@ in
     description = "Launchnix deployments";
   };
 
-  "domIP" = {config, pkgs, ...}: {
+  "{{ dom_ip }}" = {config, pkgs, ...}: {
     imports = [
       launchnixDeployment.machine
-      (import hwConfigPath)
+      (import {{ hwconfig_path }})
     ];
 
-    users.users.root.openssh.authorizedKeys.keys = [ (builtins.readFile "sshPubKeyPath") ];
+    users.users.root.openssh.authorizedKeys.keys = [ (builtins.readFile "{{ sshpubkey_abspath }}") ];
     networking.hostName = launchnixDeployment.deployment.name;
+
+    {% if static_ips %}
+      networking.interfaces.ens3.useDHCP = true; # We do this so it's easier to choose a static ip
+      networking.interfaces.ens3.ipv4.addresses = [
+        {% for static_ip in static_ips %}
+          {
+            address = "{{ static_ip }}";
+            prefixLength = 24; # TODO let people change this
+          }
+        {% endfor %}
+      ];
+    {% endif %}
   };
 
 }

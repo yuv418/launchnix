@@ -1,13 +1,28 @@
+use ergo_fs::*;
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
+use serde::Serialize;
 use std::env;
 use std::fs;
-use std::io::Error;
 use std::process::Command;
-use std::io;
-use ergo_fs::*;
-use rand::{thread_rng, Rng};
-use rand::distributions::Alphanumeric;
+use tera::Context;
+use tera::Tera;
 
-pub fn exec_morph(ip: &str, ssh_pubkey: &str, deployment_file_path: &str) -> Result<(), Box<std::error::Error + 'static>> {
+#[derive(Serialize)]
+struct MorphContext<'a> {
+    dom_ip: &'a str,
+    sshpubkey_abspath: &'a str,
+    deployment_abspath: &'a str,
+    hwconfig_path: &'a str,
+    static_ips: &'a Option<Vec<String>>,
+}
+
+pub fn exec_morph(
+    ip: &str,
+    ssh_pubkey: &str,
+    deployment_file_path: &str,
+    static_ips: &Option<Vec<String>>,
+) -> Result<(), Box<dyn std::error::Error + 'static>> {
     // file_path goes to deploymentPath
     // ip goes to domIP
     // hwConfigPath gets executable path + /nix/hwconfig.nix
@@ -29,13 +44,20 @@ pub fn exec_morph(ip: &str, ssh_pubkey: &str, deployment_file_path: &str) -> Res
 
     let sshpubkey_abspath = expand(ssh_pubkey)?;
 
-    let tomorph_string = fs::read_to_string(tomorph_path)?
-        .replace("deploymentPath", deployment_abspath)
-        .replace("domIP", ip)
-        .replace("hwConfigPath", hwconfig_path.to_str().unwrap())
-        .replace("sshPubKeyPath", &sshpubkey_abspath);
-
-    println!("{}", tomorph_string);
+    let tomorph_str = fs::read_to_string(tomorph_path)?;
+    let tomorph_str = Tera::one_off(
+        &tomorph_str,
+        &Context::from_serialize(MorphContext {
+            dom_ip: ip,
+            static_ips,
+            deployment_abspath,
+            sshpubkey_abspath: &sshpubkey_abspath,
+            hwconfig_path: hwconfig_path.to_str().unwrap(),
+        })?,
+        false,
+    )?;
+    println!("{}", tomorph_str);
+    // std::process::exit(0);
 
     let mut temp_nix = env::temp_dir();
     let temp_nix_filename: String = thread_rng() // From https://rust-lang-nursery.github.io/rust-cookbook/algorithms/randomness.html
@@ -45,7 +67,7 @@ pub fn exec_morph(ip: &str, ssh_pubkey: &str, deployment_file_path: &str) -> Res
         .collect();
 
     temp_nix.push(temp_nix_filename);
-    fs::write(&temp_nix, tomorph_string)?;
+    fs::write(&temp_nix, tomorph_str)?;
 
     let mut build = Command::new("morph")
         .arg("deploy")
@@ -62,5 +84,4 @@ pub fn exec_morph(ip: &str, ssh_pubkey: &str, deployment_file_path: &str) -> Res
     fs::remove_file(temp_nix)?;
 
     Ok(())
-
 }

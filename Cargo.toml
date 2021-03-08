@@ -16,3 +16,4 @@ ssh2 = "0.9"
 ergo_fs = "0.2"
 rand = "0.8"
 structopt = "0.3"
+tera = { version = "1", default-features = false }
