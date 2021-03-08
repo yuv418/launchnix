@@ -1,0 +1,29 @@
+#+TITLE: LaunchNix Manual
+
+
+LaunchNix is a program I made that hooks into ~morph~ and Libvirt to easily provision and deploy NixOS VMs. That being said, it's not well-documented, apart from the ~examples/example-deployment.nix~ file, which even then isn't commented and probably won't make sense to most.
+
+
+There's a preamble and a body, so I'll break up each of them and explain each part.
+
+
+Preamble:
+
+#+begin_src nix
+{
+  deployment = {
+    # deployment configuration here
+  };
+
+  machine = {config, pkgs, lib, ...}: {
+    # Machine configuration here
+  }
+             
+}
+#+end_src
+
+The ~deployment~ section is where your Libvirt config and "deployment" information goes, and the ~machine~ section is where your NixOS configuration goes.
+
+* Deployment Options
+
+(TODO)
