@@ -5,6 +5,7 @@ use serde::Serialize;
 use std::env;
 use std::fs;
 use std::process::Command;
+use tempfile::NamedTempFile;
 use tera::Context;
 use tera::Tera;
 
@@ -59,29 +60,20 @@ pub fn exec_morph(
     println!("{}", tomorph_str);
     // std::process::exit(0);
 
-    let mut temp_nix = env::temp_dir();
-    let temp_nix_filename: String = thread_rng() // From https://rust-lang-nursery.github.io/rust-cookbook/algorithms/randomness.html
-        .sample_iter(&Alphanumeric)
-        .take(10)
-        .map(char::from)
-        .collect();
-
-    temp_nix.push(temp_nix_filename);
+    let temp_nix = NamedTempFile::new()?;
     fs::write(&temp_nix, tomorph_str)?;
 
     let mut build = Command::new("morph")
         .arg("deploy")
         .arg("--upload-secrets")
-        .arg(temp_nix.to_str().unwrap())
+        .arg(temp_nix.path().to_str().unwrap())
         .arg("switch")
         .env("SSH_USER", "root") // VMs do this by default*/
         .env("SSH_SKIP_HOST_KEY_CHECK", "1") // VMs do this by default*/
         .spawn()
         .unwrap();
 
-    build.wait().expect("failed");
-
-    fs::remove_file(temp_nix)?;
+    build.wait()?;
 
     Ok(())
 }
