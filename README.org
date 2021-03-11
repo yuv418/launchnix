@@ -1,0 +1,41 @@
+
+* Launchnix
+
+A clone of NixOps (ONLY for libvirt) that won't be buggy and outdated (hopefully).
+
+As of now, this **doesn't work.** At all. (Launchnix is a WIP project)
+
+Launchnix will utilize `morph` behind-the-scenes after automatically creating virtual machines for you.
+
+*NOTE:* I'm not very good with Nix/NixOS yet (or Rust, but I'm slightly more experience with Rust than I am with NixOS).
+The implementation of things in Launchnix will probably not be very good.
+
+** Installation
+
+In `environment.systemPackages` in your `configuration.nix`, add 
+
+#+begin_src nix
+
+environment.systemPackages = with pkgs; [
+    # Other things
+    (import "${(builtins.fetchTarball "https://github.com/cdknight/launchnix/archive/master.tar.gz")}" {}).launchnix
+];
+#+end_src
+
+** TODO Implementation Checklist
+
+This is a list of semi-detailed steps that need to be done for the project to be functional.
+
+
+- [X] Build NixOS images
+- [X] Copy NixOS image to user-defined libvirt storage pool
+- [X] Upload user-defined ssh keys and unset root passwords (This was implemented differently but it works)
+- [X] Load deployment into morph and deploy
+- [X] Detect changes in the libvirt configuration (state file?). If there are changes, shut down the domain, redefine the XML, and redeploy libvirt.
+- [X] Static IPs
+- [ ] Integration with ~sudo nixos-rebuild switch~
+- [ ] Honor SSH key preferences in deployment file
+- [X] Command/command helpers
+  - [X] Reboot
+  - [X] Shutdown
+  - [X] SSH

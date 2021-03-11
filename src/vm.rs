@@ -2,14 +2,14 @@ use amxml::dom::*;
 use format_xml::xml;
 use serde::Deserialize;
 
+use std::os::unix::fs::PermissionsExt;
 use std::{
     collections::hash_map::DefaultHasher,
     fs,
     fs::Permissions,
     hash::{Hash, Hasher},
-    io::prelude::Write,
-    os::unix::fs::PermissionsExt,
 };
+use std::{io::prelude::Write, process::Command};
 use virt::{
     connect::Connect,
     domain::{Domain, VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE, VIR_DOMAIN_NONE},
@@ -125,6 +125,28 @@ impl VM {
         )))
     }
 
+    pub fn reboot(&self, dom: &Domain) -> Result<String, Box<dyn std::error::Error>> {
+        /*
+        Reboot the domain, and if the domain is not started, start it up.
+        Return the IP of the domain when it's finished coming up.
+        */
+        self.shutdown(dom)?;
+
+        // Wait till it has an IP, which will auto-start the VM
+
+        self.dom_ip(dom)
+    }
+
+    pub fn shutdown(&self, dom: &Domain) -> Result<(), Box<dyn std::error::Error>> {
+        dom.shutdown()?;
+        // TODO we need something here to make sure we don't have an infinite loop
+        while dom.is_active()? {
+            // thread::sleep(time::Duration::from_secs(2)); // TODO maybe change this
+        }
+
+        Ok(())
+    }
+
     pub fn apply_xml(
         &self,
         conn: &Connect,
@@ -174,24 +196,27 @@ impl VM {
         let merged_xml = merge_xml(&base_xml, &self.extra_config, "domain");
         // println!("{}", merged_xml);
 
+        // Dom exists, shut it down
         if let Some(dom) = &domopt {
             println!("DEBUG: Shutting down domain");
-            dom.shutdown();
-            while (dom.is_active()?) {
-                // thread::sleep(time::Duration::from_secs(2)); // TODO maybe change this
-            }
+            self.shutdown(&dom)?;
             println!("DEBUG: Applying XML..."); // Haha we're not
         }
 
         println!("DEBUG: Starting up domain");
         let dom = Domain::define_xml(&conn, &merged_xml)?;
-        dom.create();
+        dom.create()?;
 
         Ok(dom)
     }
 
     pub fn dom_ip(&self, dom: &Domain) -> Result<String, Box<std::error::Error>> {
         // Blocking function to receive domain IP
+
+        // Start up the VM if it doesn't exist.
+        if !dom.is_active()? {
+            dom.create();
+        }
         let mut iaddrs = dom.interface_addresses(VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE, 0)?;
         while iaddrs.len() == 0 {
             // thread::sleep(time::Duration::from_secs(3)); // TODO maybe change this
@@ -201,11 +226,41 @@ impl VM {
         Ok(iaddrs[0].addrs[0].addr.clone()) // First IP, TODO add more control here?
     }
 
+    pub fn ssh(&self) -> Result<(), Box<dyn std::error::Error>> {
+        // Spawn an SSH subprocess with the dom's ip
+
+        /* This will only get called from the CLI, so we can auto-connect here */
+
+        let dom = self.dom(&self.conn())?;
+
+        let mut ssh_exec = Command::new("ssh")
+            .arg("-o")
+            .arg("StrictHostKeyChecking=no")
+            .arg("-i")
+            .arg(&self.ssh_priv_key_path)
+            .arg(format!("root@{}", self.dom_ip(&dom)?))
+            .spawn()
+            .expect("Launchnix failed to SSH into your deployment. Please report this issue.");
+
+        ssh_exec.wait()?;
+
+        Ok(())
+    }
+
+    pub fn conn(&self) -> Connect {
+        Connect::open("qemu:///system") // TODO allow user-specified connections
+            .expect("Couldn't conect to the supplied libvirt connection.")
+    }
+
+    pub fn dom(&self, conn: &Connect) -> Result<Domain, virt::error::Error> {
+        Domain::lookup_by_name(conn, &self.name)
+    }
+
     pub fn apply(&mut self) -> Result<(), Box<std::error::Error + 'static>> {
         // TODO use other connections if specified by the user
-        let mut conn = Connect::open("qemu:///system")?;
-        let domlookup = Domain::lookup_by_name(&conn, &self.name);
         let mut sship = String::new();
+        let conn = self.conn();
+        let domlookup = self.dom(&conn);
 
         if let Err(error::Error { .. }) = domlookup {
             // Only create a new domain if it doesn't exist.
@@ -224,10 +279,6 @@ impl VM {
                 println!("Waiting for IP...");
             } else {
                 println!("No configuration changes detected. Starting morph...");
-                if !dom.is_active()? {
-                    // TODO offload to dom IP?
-                    dom.create();
-                }
                 sship = self.dom_ip(&dom)?;
             }
         }
