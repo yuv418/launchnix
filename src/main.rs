@@ -5,9 +5,9 @@ mod nix;
 mod vm;
 mod xml;
 
+use std::fs::canonicalize;
 use std::path::PathBuf;
 use std::process::exit;
-use std::{fmt::Display, fs::canonicalize};
 use structopt::{clap::arg_enum, StructOpt};
 
 arg_enum! {
