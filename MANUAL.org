@@ -6,8 +6,9 @@ LaunchNix is a program I made that hooks into ~morph~ and Libvirt to easily prov
 
 There's a preamble and a body, so I'll break up each of them and explain each part.
 
+** Overview
 
-Preamble:
+It might help to explain what the general format of your typical LaunchNix file looks like. Here it is:
 
 #+begin_src nix
 {
@@ -15,15 +16,77 @@ Preamble:
     # deployment configuration here
   };
 
-  machine = {config, pkgs, lib, ...}: {
+  machine = { config, pkgs, lib, ... }: {
     # Machine configuration here
   }
              
 }
 #+end_src
 
-The ~deployment~ section is where your Libvirt config and "deployment" information goes, and the ~machine~ section is where your NixOS configuration goes.
+The ~deployment~ section is where your Libvirt config and "deployment" information goes, and the ~machine~ section is where your NixOS configuration goes (see how there's the good ol' ~{ config, pkgs, lib, ...  }~ that come before most of your NixOS configuration files?).
 
-* Deployment Options
+All your LaunchNix files *must* conform to this structure of an attribute set with the keys ~deployment~ and ~machine~, or LaunchNix will panic and fail to deploy your file.
 
-(TODO)
+** The Deployment Section
+
+I'll bullet all the things you can do in the deployment section, and explain them more-in-detail as well.
+
++ ~name~: *Required*
+  - This option is the name of your deployment. It'll also be the name of your Libvirt domain (Libvirt calls virtual machines domains).
++ ~cpus~: *Required*
+  - This option is the number of CPUs that your VM will have.
++ ~ram~: *Required*
+  - This option specifies the amount of memory your VM will have---*note that this option is in MiB*, not in GiB or KiB or any other unit.
++ ~sshPrivKeyPath~ and ~sshPubKeyPath~: *Required*
+  - These two required arguments are the (relative or absolute, either is fine) path to the SSH public key to upload to the virtual machine, and the (again same deal with the paths) SSH private key to use to SSH into the virtual machine
+  - **NOTE:* I haven't actually implemented this option yet---this is less-than-alpha-quality software, so don't expect everything to work just yet.
++ ~staticIPs~: *Optional*
+  - This is a list of static IPs to give to assign the virtual machine. Currently, this only works with the default network interface of the NixOS, but I will add support for custom interfaces in the future (as this is basically the point of this feature---I want to assign my VM a static bridged IP on my LAN)
+  - Example:
+    #+begin_src nix
+        staticIPs = [ "192.168.122.76" ]; # Using the 192.168.122.x subnet as that's what Libvirt uses by default
+    #+end_src
++ ~extraConfig~: *Optional*
+  - This is any extra Libvirt XML you want to apply. /Unlike/ ~nixops~, Launchnix will detect changes to your ~extraConfig~ (or any other part of your deployment configuration) and apply it to your Libvirt domain, making sure they are applied by restarted the VM gracefully---better yet, it only applies changes when there /are/ changes.
+  - XML Example: note that this XML is what you'd see /after/ the ~<domain>~ tag and before the ~</domain>~ tag. Also, keep in mind that any XML you put here will override any defaults. If you decide to, you could probably override the number of ~cpus~ the machine has, etc, etc. I was thinking this field would be useful if you want to do GPU passthrough, or something like that. Effectively, though, this ~extraConfig~ XML just "merges" your supplied XML with the default XML, replacing original values unconditionally (although I /believe/ it doesn't overwrite tag attributes for tags that have children---but I have to double-check my code).
+    #+begin_src xml
+        <devices>
+          <serial type="pty" />
+        </devices>
+    #+end_src
+  - Since it's also probably helpful, here is the default XML that LaunchNix uses when creating your VM:
+#+begin_src xml
+    <domain type="kvm">
+        <name>
+        <!-- name from your specified deployment name here -->
+        </name>
+        <memory unit="MiB">
+        <!-- specified deployment ram here -->
+        </memory>
+        <vcpu>{self.cpus}</vcpu>
+        <uuid></uuid>
+        <os>
+        <type arch="x86_64" machine="pc-i440fx-5.1">"hvm"</type>
+        </os>
+        <devices>
+        <disk type="file" device="disk">
+            <driver name="qemu" type="qcow2" />
+            <source file="generated image here" />
+            <target dev="hda" bus="ide" />
+            <boot order="1" />
+        </disk>
+        <interface type="network">
+            <source network="default" />
+            <model type="rtl8139" />
+        </interface>
+        <graphics type="spice" />
+        <video>
+            <model type="qxl" />
+        </video>
+        <input type="keyboard" bus="usb" />
+        </devices>
+        <features>
+        <acpi />
+        </features>
+    </domain>
+#+end_src
