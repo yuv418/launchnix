@@ -39,7 +39,7 @@ I'll bullet all the things you can do in the deployment section, and explain the
   - This option specifies the amount of memory your VM will have---*note that this option is in MiB*, not in GiB or KiB or any other unit.
 + ~sshPrivKeyPath~ and ~sshPubKeyPath~: *Required*
   - These two required arguments are the (relative or absolute, either is fine) path to the SSH public key to upload to the virtual machine, and the (again same deal with the paths) SSH private key to use to SSH into the virtual machine
-  - **NOTE:* I haven't actually implemented this option yet---this is less-than-alpha-quality software, so don't expect everything to work just yet.
+  - *NOTE:* I haven't actually implemented this option yet---this is less-than-alpha-quality software, so don't expect everything to work just yet.
 + ~staticIPs~: *Optional*
   - This is a list of static IPs to give to assign the virtual machine. Currently, this only works with the default network interface of the NixOS, but I will add support for custom interfaces in the future (as this is basically the point of this feature---I want to assign my VM a static bridged IP on my LAN)
   - Example:
@@ -51,42 +51,43 @@ I'll bullet all the things you can do in the deployment section, and explain the
   - XML Example: note that this XML is what you'd see /after/ the ~<domain>~ tag and before the ~</domain>~ tag. Also, keep in mind that any XML you put here will override any defaults. If you decide to, you could probably override the number of ~cpus~ the machine has, etc, etc. I was thinking this field would be useful if you want to do GPU passthrough, or something like that. Effectively, though, this ~extraConfig~ XML just "merges" your supplied XML with the default XML, replacing original values unconditionally (although I /believe/ it doesn't overwrite tag attributes for tags that have children---but I have to double-check my code).
     #+begin_src xml
         <devices>
+          <!-- add a serial device (I think) to the VM-->
           <serial type="pty" />
         </devices>
     #+end_src
   - Since it's also probably helpful, here is the default XML that LaunchNix uses when creating your VM:
-#+begin_src xml
-    <domain type="kvm">
-        <name>
-        <!-- name from your specified deployment name here -->
-        </name>
-        <memory unit="MiB">
-        <!-- specified deployment ram here -->
-        </memory>
-        <vcpu>{self.cpus}</vcpu>
-        <uuid></uuid>
-        <os>
-        <type arch="x86_64" machine="pc-i440fx-5.1">"hvm"</type>
-        </os>
-        <devices>
-        <disk type="file" device="disk">
-            <driver name="qemu" type="qcow2" />
-            <source file="generated image here" />
-            <target dev="hda" bus="ide" />
-            <boot order="1" />
-        </disk>
-        <interface type="network">
-            <source network="default" />
-            <model type="rtl8139" />
-        </interface>
-        <graphics type="spice" />
-        <video>
-            <model type="qxl" />
-        </video>
-        <input type="keyboard" bus="usb" />
-        </devices>
-        <features>
-        <acpi />
-        </features>
-    </domain>
-#+end_src
+    #+begin_src xml
+        <domain type="kvm">
+            <name>
+            <!-- name from your specified deployment name here -->
+            </name>
+            <memory unit="MiB">
+            <!-- specified deployment ram here -->
+            </memory>
+            <vcpu>{self.cpus}</vcpu>
+            <uuid></uuid>
+            <os>
+            <type arch="x86_64" machine="pc-i440fx-5.1">"hvm"</type>
+            </os>
+            <devices>
+            <disk type="file" device="disk">
+                <driver name="qemu" type="qcow2" />
+                <source file="generated image here" />
+                <target dev="hda" bus="ide" />
+                <boot order="1" />
+            </disk>
+            <interface type="network">
+                <source network="default" />
+                <model type="rtl8139" />
+            </interface>
+            <graphics type="spice" />
+            <video>
+                <model type="qxl" />
+            </video>
+            <input type="keyboard" bus="usb" />
+            </devices>
+            <features>
+            <acpi />
+            </features>
+        </domain>
+    #+end_src
