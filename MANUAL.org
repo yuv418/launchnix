@@ -41,10 +41,19 @@ I'll bullet all the things you can do in the deployment section, and explain the
   - These two required arguments are the (relative or absolute, either is fine) path to the SSH public key to upload to the virtual machine, and the (again same deal with the paths) SSH private key to use to SSH into the virtual machine
   - *NOTE:* I haven't actually implemented this option yet---this is less-than-alpha-quality software, so don't expect everything to work just yet.
 + ~staticIPs~: *Optional*
-  - This is a list of static IPs to give to assign the virtual machine. Currently, this only works with the default network interface of the NixOS, but I will add support for custom interfaces in the future (as this is basically the point of this feature---I want to assign my VM a static bridged IP on my LAN)
+  - This is a list of attribute sets which contain static IPs to give to assign the virtual machine. This works with any network interface, so long as you have the name of said network interface. Of course, you could probably manually do this with the ~networking.interfaces~ option, which is what LaunchNix does for you---it converts your ~staticIPs~ into ~networking.interfaces~, but this option is perhaps a tad bit cleaner and this option is more appropriate in the ~deployment~ section.
   - Example:
     #+begin_src nix
-        staticIPs = [ "192.168.122.76" ]; # Using the 192.168.122.x subnet as that's what Libvirt uses by default
+        staticIPs = [
+          {
+            ips = [ "192.168.12.76" ];
+            interface = "ens4"; # The default is ens3, and you can omit this option if you wish
+            prefix = 32; # The default is 24, so you can omit this option if you want.
+          }
+          {
+            ips = [ "192.168.122.32" "192.168.1.43" ]; # Set these on the libvirt network
+          }
+        ]; # Using the 192.168.122.x subnet as that's what Libvirt uses by default
     #+end_src
 + ~extraConfig~: *Optional*
   - This is any extra Libvirt XML you want to apply. /Unlike/ ~nixops~, Launchnix will detect changes to your ~extraConfig~ (or any other part of your deployment configuration) and apply it to your Libvirt domain, making sure they are applied by restarted the VM gracefully---better yet, it only applies changes when there /are/ changes.

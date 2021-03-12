@@ -18,16 +18,18 @@ in
     users.users.root.openssh.authorizedKeys.keys = [ (builtins.readFile "{{ sshpubkey_abspath }}") ];
     networking.hostName = launchnixDeployment.deployment.name;
 
+    networking.interfaces.ens3.useDHCP = true; # We do this so it's easier to choose a static ip
     {% if static_ips %}
-      networking.interfaces.ens3.useDHCP = true; # We do this so it's easier to choose a static ip
-      networking.interfaces.ens3.ipv4.addresses = [
         {% for static_ip in static_ips %}
+        networking.interfaces.{{ static_ip.interface }}.ipv4.addresses = [
+          {% for ip in static_ip.ips %}
           {
-            address = "{{ static_ip }}";
-            prefixLength = 24; # TODO let people change this
+            address = "{{ ip }}";
+            prefixLength = {{ static_ip.prefix }}; # TODO let people change this
           }
+          {% endfor %}
+        ];
         {% endfor %}
-      ];
     {% endif %}
   };
 

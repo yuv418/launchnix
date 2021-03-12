@@ -1,6 +1,6 @@
 use amxml::dom::*;
 use format_xml::xml;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use std::os::unix::fs::PermissionsExt;
 use std::{
@@ -33,7 +33,7 @@ pub struct VM {
     ssh_priv_key_path: String,
 
     #[serde(rename = "staticIPs")] // Serde won't rename this one for me, unfortunately
-    static_ips: Option<Vec<String>>,
+    static_ips: Option<Vec<StaticIP>>, // Each entry will be for a different interface
 
     #[serde(default = "default_storage_pool_name")]
     storage_pool_name: String,
@@ -44,6 +44,26 @@ pub struct VM {
     #[serde(skip)]
     image_path: String,
 }
+
+#[derive(Deserialize, Serialize, Debug, Hash)]
+pub struct StaticIP {
+    ips: Vec<String>,
+
+    #[serde(default = "ens3")]
+    interface: String,
+
+    #[serde(default = "get24")]
+    prefix: u32,
+}
+
+fn get24() -> u32 {
+    24
+}
+
+fn ens3() -> String {
+    "ens3".to_owned()
+}
+
 fn default_storage_pool_name() -> String {
     "default".to_owned()
 }
@@ -199,7 +219,7 @@ impl VM {
         // Dom exists, shut it down
         if let Some(dom) = &domopt {
             println!("DEBUG: Shutting down domain");
-            self.shutdown(&dom)?;
+            self.shutdown(&dom); // We don't care if this fails.
             println!("DEBUG: Applying XML..."); // Haha we're not
         }
 

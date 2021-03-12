@@ -9,20 +9,22 @@ use tempfile::NamedTempFile;
 use tera::Context;
 use tera::Tera;
 
+use crate::vm::StaticIP;
+
 #[derive(Serialize)]
 struct MorphContext<'a> {
     dom_ip: &'a str,
     sshpubkey_abspath: &'a str,
     deployment_abspath: &'a str,
     hwconfig_path: &'a str,
-    static_ips: &'a Option<Vec<String>>,
+    static_ips: &'a Option<Vec<StaticIP>>,
 }
 
 pub fn exec_morph(
     ip: &str,
     ssh_pubkey: &str,
     deployment_file_path: &str,
-    static_ips: &Option<Vec<String>>,
+    static_ips: &Option<Vec<StaticIP>>,
 ) -> Result<(), Box<dyn std::error::Error + 'static>> {
     // file_path goes to deploymentPath
     // ip goes to domIP
@@ -58,7 +60,7 @@ pub fn exec_morph(
         false,
     )?;
     println!("{}", tomorph_str);
-    // std::process::exit(0);
+    std::process::exit(0);
 
     let temp_nix = NamedTempFile::new()?;
     fs::write(&temp_nix, tomorph_str)?;
