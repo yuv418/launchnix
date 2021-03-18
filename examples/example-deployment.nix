@@ -12,7 +12,16 @@
         name = "test";
         sshPubKeyPath = "~/.ssh/id_rsa.pub";
         sshPrivKeyPath = "~/.ssh/id_rsa";
-        staticIPs = [ { ips = [ "192.168.122.32" "192.168.122.48" ]; } ];
+        staticIPs = [
+            {
+                ips = [ "192.168.122.32" "192.168.122.48" ];
+            }
+            {
+                ips = [ "192.168.1.32" ];
+                interface = "ens4";
+                prefix = 24;
+            }
+        ];
     };
 
     machine = {config, pkgs, lib, ...}:

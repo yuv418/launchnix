@@ -32,7 +32,7 @@ let
             ];
             installPhase = drv.installPhase + ''
                 mv $bin/bin/launchnix $bin/bin/launchnix-bin
-                makeWrapper $bin/bin/launchnix-bin $bin/bin/launchnix --set PATH ${ pkgs.lib.makeBinPath [ pkgs.morph pkgs.nix pkgs.gnutar pkgs.gzip pkgs.git pkgs.ssh ] }
+                makeWrapper $bin/bin/launchnix-bin $bin/bin/launchnix --set PATH ${ pkgs.lib.makeBinPath [ pkgs.morph pkgs.nix pkgs.gnutar pkgs.gzip pkgs.git pkgs.openssh ] }
 
                 cp -r $src/nix $bin/bin/
             '';
