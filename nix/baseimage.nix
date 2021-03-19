@@ -8,7 +8,7 @@ with lib;
 
   imports =
   [
-    ./hwconfig.nix
+    "{{ hwconfig_path }}"
   ];
 
   users.users.root.openssh.authorizedKeys.keys = [ (builtins.readFile sshKeyPath) ];
@@ -17,7 +17,7 @@ with lib;
     inherit lib config;
 
     pkgs = import <nixpkgs> { inherit (pkgs) system; }; # ensure we use the regular qemu-kvm package
-    diskSize = 8192;
+    diskSize = {{ disk_size }};
     format = "qcow2";
     configFile = pkgs.writeText "configuration.nix"
       ''

@@ -2,6 +2,7 @@
 mod image;
 mod morph;
 mod nix;
+mod pathutils;
 mod vm;
 mod xml;
 

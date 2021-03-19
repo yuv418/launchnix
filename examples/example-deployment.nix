@@ -8,6 +8,7 @@
             <serial type="pty"/>
         </devices>
         '';
+        diskSize = 4096;
 
         name = "test";
         sshPubKeyPath = "~/.ssh/id_rsa.pub";
@@ -15,11 +16,6 @@
         staticIPs = [
             {
                 ips = [ "192.168.122.32" "192.168.122.48" ];
-            }
-            {
-                ips = [ "192.168.1.32" ];
-                interface = "ens4";
-                prefix = 24;
             }
         ];
     };

@@ -26,8 +26,8 @@ use crate::xml::merge_xml;
 #[serde(rename_all = "camelCase")]
 pub struct VM {
     extra_config: String,
-    cpus: i32,
-    ram: i32,
+    cpus: u32,
+    ram: u32,
     name: String,
     ssh_pub_key_path: String,
     ssh_priv_key_path: String,
@@ -37,6 +37,9 @@ pub struct VM {
 
     #[serde(default = "default_storage_pool_name")]
     storage_pool_name: String,
+
+    #[serde(default = "default_disk_size")]
+    disk_size: u64, // In MiB, or something
 
     #[serde(skip)]
     file_path: String,
@@ -54,6 +57,10 @@ pub struct StaticIP {
 
     #[serde(default = "get24")]
     prefix: u32,
+}
+
+fn default_disk_size() -> u64 {
+    8192
 }
 
 fn get24() -> u32 {
@@ -91,11 +98,11 @@ impl VM {
         &mut self,
         conn: &Connect,
     ) -> Result<(), Box<dyn std::error::Error + 'static>> {
-        let oqcow2 = image::build_image(&self.ssh_pub_key_path).unwrap();
+        let oqcow2 = image::build_image(&self.ssh_pub_key_path, self.disk_size).unwrap();
 
         self.image_path = self.deployment_image_path(conn)?;
 
-        println!("DEBUG STORAGE: Copied {} to {}", oqcow2, self.image_path);
+        println!("DEBUG STORAGE: Copying {} to {}", oqcow2, self.image_path);
         fs::copy(&oqcow2, &self.image_path)?;
 
         let perms = Permissions::from_mode(0o700);

@@ -1,3 +1,4 @@
+use crate::pathutils::merge_exe_path;
 use ergo_fs::*;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
@@ -30,15 +31,8 @@ pub fn exec_morph(
     // ip goes to domIP
     // hwConfigPath gets executable path + /nix/hwconfig.nix
 
-    let mut exe_path = env::current_exe()?;
-    exe_path.pop();
-    println!("{:?}", exe_path);
-
-    let mut hwconfig_path = exe_path.clone();
-    let mut tomorph_path = exe_path;
-
-    hwconfig_path.push("nix/hwconfig.nix");
-    tomorph_path.push("nix/tomorph.nix");
+    let hwconfig_path = merge_exe_path("nix/hwconfig.nix");
+    let tomorph_path = merge_exe_path("nix/tomorph.nix");
 
     // Morph doesn't let you pass arguments, so manually replace string values (*sigh).
 
@@ -59,8 +53,7 @@ pub fn exec_morph(
         })?,
         false,
     )?;
-    println!("{}", tomorph_str);
-    std::process::exit(0);
+    // println!("{}", tomorph_str);
 
     let temp_nix = NamedTempFile::new()?;
     fs::write(&temp_nix, tomorph_str)?;
