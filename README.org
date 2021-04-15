@@ -39,3 +39,42 @@ This is a list of semi-detailed steps that need to be done for the project to be
   - [X] Reboot
   - [X] Shutdown
   - [X] SSH
+- [ ] Non-NixOS guests/helpful additions
+  + [ ] ~installationMedia~ field (path to ISO file; you could use builtins.fetchUrl)
+    #+begin_src nix
+    installationMedia = builtins.fetchurl "https://dl-cdn.alpinelinux.org/alpine/v3.13/releases/x86_64/alpine-standard-3.13.5-x86_64.iso";
+    #+end_src
+  + [ ] ~initialDisks~ field: might look like this
+    #+begin_src nix
+    initialDisks = {
+        boot = {
+            size = 40000; # In MB
+            extraXML = ''
+                <!--extra xml here-->
+            '';
+            fromBackup = "/path/to/backup-file.here" # only installationMedia *or* fromBackup will be allowed at the same time for the boot disk.
+        };
+        games = {
+            physicalDisk = "/dev/sdd";
+        };
+    }
+    #+end_src
+  + [ ] ~vGPUType~ field: for NVIDIA vGPUs (specify mdev type). *Also will work for NixOS guests*
+    #+begin_src nix
+    vGPUType = "nvidia-288"
+    #+end_src
+  + [ ] ~pciDevices~ field: for PCI devices. *Also will work for NixOS guests*
+    #+begin_src nix
+    pciDevices = [ "09:00.0" "01:00.0" ];
+
+    # OR
+
+    pciDevices = [ {
+      id = "09:00.0";
+      gpu = true;
+      romFile = "path-to-romfile.rom";
+      extraXML = ''
+      <!--extra xml-->
+      '';
+    }];
+    #+end_src
