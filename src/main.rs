@@ -48,7 +48,10 @@ fn main() {
         Ok(deployfile_unwrapped) => {
             let deployfile = deployfile_unwrapped.to_str().unwrap();
 
-            let mut vm = vm::VM::from_nixfile(deployfile);
+            let mut vm = match vm::VM::from_nixfile(deployfile) {
+                Ok(vm) => vm,
+                Err(e) => { error_exit(&format!("{}", e.to_string())); panic!() },
+            };
             let get_dom = || -> virt::domain::Domain {
                 match vm.dom(&vm.conn()) {
                     Ok(dom) => dom,

@@ -76,15 +76,15 @@ fn default_storage_pool_name() -> String {
 }
 
 impl VM {
-    pub fn from_nixfile(file_path: &str) -> Self {
-        let mut vmparams: Self = nix::from_nixfile(file_path);
+    pub fn from_nixfile(file_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let mut vmparams: Self = nix::from_nixfile(file_path)?;
         vmparams.file_path = file_path.to_string();
 
         vmparams.extra_config = format!(
             "<domain type=\"kvm\">{}</domain>",
             vmparams.extra_config.replace("\\\\", "\\")
         ); // Wrap config in domain tags and unescape \ns (because nix eval does weird things)
-        vmparams
+        Ok(vmparams)
     }
 
     fn hash_self(&self) -> u64 {
