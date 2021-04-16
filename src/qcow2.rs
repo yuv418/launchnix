@@ -9,7 +9,7 @@ pub fn create(output_path: &PathBuf, size: u64) -> Result<(), String> {
     let lazy_error_message = "Failed to create the blank image for your non-NixOS VM.";
     let img_handle = Command::new("qemu-img")
         .arg("create")
-        .arg("-g")
+        .arg("-f")
         .arg("qcow2")
         .arg(output_path.to_str().unwrap())
         .arg(size.to_string() + "M")
