@@ -42,7 +42,7 @@ pub struct VM {
     storage_pool_name: String,
 
     #[serde(default = "default_disk_size")]
-    disk_size: u64, // In MiB, or something TODO replace with initial_disks
+    disk_size: Option<u64>, // In MiB, or something TODO replace with initial_disks
     #[serde(skip)]
     file_path: String,
 
@@ -61,12 +61,14 @@ pub struct VM {
 }
 
 #[derive(Deserialize, Serialize, Debug, Hash)]
+#[serde(rename_all = "camelCase")]
 pub struct InitialDiskConfiguration {
     size: u64,
     from_backup: Option<PathBuf>, // should this be PathBuf?
     extra_xml: Option<String>,
 }
 #[derive(Deserialize, Serialize, Debug, Hash)]
+#[serde(rename_all = "camelCase")]
 pub struct PCIDevice {
     id: String,
     gpu: bool,
@@ -85,8 +87,8 @@ pub struct StaticIP {
     prefix: u32,
 }
 
-fn default_disk_size() -> u64 {
-    8192
+fn default_disk_size() -> Option<u64> {
+    Some(8192) // this is a... quite.. large. whatever.
 }
 
 fn get24() -> u32 {
@@ -109,6 +111,35 @@ impl VM {
         }
         true
     }
+
+    pub fn boot_disk_info(&self) -> Option<&InitialDiskConfiguration> {
+        if let Some(initial_disks) = &self.initial_disks {
+            return initial_disks.get("boot");
+        }
+        None
+    }
+
+    pub fn boot_disk_backup_file(&self) -> Option<PathBuf> {
+        if let Some(boot_disk_info) = self.boot_disk_info() {
+            if let Some(backup_file) = &boot_disk_info.from_backup {
+                return Some(PathBuf::from(backup_file))
+            }
+        }
+        None
+    }
+
+    pub fn boot_disk_size(&self) -> u64 {
+        // In MB
+        // Precendence for initialDisks over diskSize
+        if let Some(boot_disk_info) = self.boot_disk_info() {
+            return boot_disk_info.size;
+        } else if let Some(disk_size) = self.disk_size {
+            return disk_size;
+        }
+
+        default_disk_size().unwrap() // We can safely unwrap since the default size is always Some
+    }
+
     pub fn from_nixfile(file_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let mut vmparams: Self = nix::from_nixfile(file_path)?;
         vmparams.file_path = file_path.to_string();
@@ -149,16 +180,22 @@ impl VM {
         conn: &Connect,
     ) -> Result<(), Box<dyn std::error::Error + 'static>> {
         self.image_path = self.deployment_image_path(conn)?;
+        let disk_size = self.boot_disk_size();
 
         if self.nixos() {
-            let oqcow2 = nix_image::build_image(&self.ssh_pub_key_path, self.disk_size).unwrap();
+            let oqcow2 = nix_image::build_image(&self.ssh_pub_key_path, disk_size).unwrap();
 
             println!("DEBUG STORAGE: Copying {} to {}", oqcow2, self.image_path);
             fs::copy(&oqcow2, &self.image_path)?;
         } else {
             // TODO unnecessary allocation, deployment_image_path should return PathBuf, not String
             let image_pathbuf = PathBuf::from(&self.image_path);
-            qcow2::create(&image_pathbuf, self.disk_size)?;
+            qcow2::create(&image_pathbuf, disk_size)?;
+            // Should we load from the backup file?
+            if let Some(boot_disk_backup_file) = self.boot_disk_backup_file() {
+                println!("Copying your data from the backup file. This may take a while...");
+                qcow2::dd(&boot_disk_backup_file, &image_pathbuf)?; // Load from backup
+            }
         }
 
         let perms = Permissions::from_mode(0o700);
@@ -256,12 +293,14 @@ impl VM {
             <devices>
                 if (!self.nixos()) {
                     if let Some(installation_media) = (&self.installation_media) { // Boot up with install media (first)
-                        <disk type="file" device="cdrom">
-                            <driver name="qemu" type="raw"/>
-                            <source file={installation_media.to_str().unwrap()}/>
-                            <target dev="hdb" bus="ide"/>
-                            <boot order="1"/>
-                        </disk>
+                        if (self.boot_disk_backup_file().is_none()) { // NOTE We only insert the ISO image if the backup file is empty.
+                            <disk type="file" device="cdrom">
+                                <driver name="qemu" type="raw"/>
+                                <source file={installation_media.to_str().unwrap()}/>
+                                <target dev="hdb" bus="ide"/>
+                                <boot order="1"/>
+                            </disk>
+                        }
                     }
                 }
                 <disk type="file" device="disk">
