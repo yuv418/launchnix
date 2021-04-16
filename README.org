@@ -22,7 +22,7 @@ environment.systemPackages = with pkgs; [
 ];
 #+end_src
 
-** TODO Implementation Checklist
+** TODO Implementation Checklist/Roadmap
 
 This is a list of semi-detailed steps that need to be done for the project to be functional.
 
@@ -78,3 +78,17 @@ This is a list of semi-detailed steps that need to be done for the project to be
       '';
     }];
     #+end_src
+  + [ ] ~bootOrder~ field: for setting the boot order of VMs
+    #+begin_src nix
+    bootOrder = ["PXE" "games" "boot"] # TODO enums
+    #+end_src
+- [ ] ~launchnixd~ and LaunchnixOS
+  + Lofty goal: make launchnix an operating system/full-fledged virtualisation platform
+  + After non-NixOS guest support
+  + [ ] *Remove the libvirt dependency (or better, make multiple backends)*---use QEMU+QMP with UNIX sockets
+    - May sound like NIH syndrome, but if we're writing our own daemon it should be to replace libvirt
+  + [ ] Write a git server/use a preconfigured one to manage repos (PaaS/Heroku-like)
+    - [ ] On push, update all the virtual machines
+    - [ ] Support multiple repos: each folder in a monorepo and separate repos
+    - [ ] Control verbs over HTTP (guest migration, etc.)
+    - [ ] Authentication

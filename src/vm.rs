@@ -3,13 +3,15 @@ use format_xml::xml;
 use serde::{Deserialize, Serialize};
 
 use std::os::unix::fs::PermissionsExt;
+use std::process::Command;
 use std::{
     collections::hash_map::DefaultHasher,
+    collections::BTreeMap,
     fs,
     fs::Permissions,
     hash::{Hash, Hasher},
+    path::PathBuf,
 };
-use std::{io::prelude::Write, process::Command};
 use virt::{
     connect::Connect,
     domain::{Domain, VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE, VIR_DOMAIN_NONE},
@@ -17,9 +19,10 @@ use virt::{
     storage_pool::StoragePool,
 };
 
-use crate::image;
 use crate::morph;
 use crate::nix;
+use crate::nix_image;
+use crate::qcow2;
 use crate::xml::merge_xml;
 
 #[derive(Default, Debug, Deserialize, Hash)]
@@ -39,13 +42,36 @@ pub struct VM {
     storage_pool_name: String,
 
     #[serde(default = "default_disk_size")]
-    disk_size: u64, // In MiB, or something
-
+    disk_size: u64, // In MiB, or something TODO replace with initial_disks
     #[serde(skip)]
     file_path: String,
 
     #[serde(skip)]
     image_path: String,
+
+    // Unimplemented options (including non-NixOS options)
+    vgpu_type: Option<String>, // for NVIDIA vGPU support (eg. "nvidia-62"). Will automatically declaratively create/update/set the mdev on change/create
+    pci_devices: Option<Vec<PCIDevice>>, // for PCI passthrough.
+    initial_disks: Option<BTreeMap<String, InitialDiskConfiguration>>,
+
+    // Non-NixOS options only—will not run morph if any of these are defined
+    nixos: Option<bool>, // if this isn't explicitly set -> if installation_media.is_some() || boot_order.is_some() { false } else { true }
+    installation_media: Option<PathBuf>, // Path to installation media
+    boot_order: Option<Vec<String>>, // Disk name list?
+}
+
+#[derive(Deserialize, Serialize, Debug, Hash)]
+pub struct InitialDiskConfiguration {
+    size: u64,
+    from_backup: Option<PathBuf>, // should this be PathBuf?
+    extra_xml: Option<String>,
+}
+#[derive(Deserialize, Serialize, Debug, Hash)]
+pub struct PCIDevice {
+    id: String,
+    gpu: bool,
+    rom_file: Option<String>,
+    extra_xml: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Hash)]
@@ -76,6 +102,13 @@ fn default_storage_pool_name() -> String {
 }
 
 impl VM {
+    // Helper function because of how the `nixos` flag is handled
+    pub fn nixos(&self) -> bool {
+        if self.nixos.is_some() {
+            return self.nixos.unwrap();
+        }
+        true
+    }
     pub fn from_nixfile(file_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let mut vmparams: Self = nix::from_nixfile(file_path)?;
         vmparams.file_path = file_path.to_string();
@@ -84,6 +117,23 @@ impl VM {
             "<domain type=\"kvm\">{}</domain>",
             vmparams.extra_config.replace("\\\\", "\\")
         ); // Wrap config in domain tags and unescape \ns (because nix eval does weird things)
+
+        // Determine whether this is a NixOS deployment or a non-NixOS deployment
+        // Don't do any determination if the the user sets the flag manually
+        if vmparams.nixos.is_none() {
+            vmparams.nixos =
+                Some(vmparams.installation_media.is_none() && vmparams.boot_order.is_none());
+        }
+
+        /*
+        TODO add validation method (will be called right here)
+
+        installationMedia existing
+        vGPUType being a valid MDEV type
+        pciDevices containing valid PCI devices/ROM files
+        initialDisks's diskSize < storageSize and backupFile existing if specified
+
+        */
         Ok(vmparams)
     }
 
@@ -98,12 +148,18 @@ impl VM {
         &mut self,
         conn: &Connect,
     ) -> Result<(), Box<dyn std::error::Error + 'static>> {
-        let oqcow2 = image::build_image(&self.ssh_pub_key_path, self.disk_size).unwrap();
-
         self.image_path = self.deployment_image_path(conn)?;
 
-        println!("DEBUG STORAGE: Copying {} to {}", oqcow2, self.image_path);
-        fs::copy(&oqcow2, &self.image_path)?;
+        if self.nixos() {
+            let oqcow2 = nix_image::build_image(&self.ssh_pub_key_path, self.disk_size).unwrap();
+
+            println!("DEBUG STORAGE: Copying {} to {}", oqcow2, self.image_path);
+            fs::copy(&oqcow2, &self.image_path)?;
+        } else {
+            // TODO unnecessary allocation, deployment_image_path should return PathBuf, not String
+            let image_pathbuf = PathBuf::from(&self.image_path);
+            qcow2::create(&image_pathbuf, self.disk_size)?;
+        }
 
         let perms = Permissions::from_mode(0o700);
         fs::set_permissions(&self.image_path, perms)?;
@@ -198,11 +254,21 @@ impl VM {
                 <type arch="x86_64" machine="pc-i440fx-5.1">"hvm"</type>
             </os>
             <devices>
+                if (!self.nixos()) {
+                    if let Some(installation_media) = (&self.installation_media) { // Boot up with install media (first)
+                        <disk type="file" device="cdrom">
+                            <driver name="qemu" type="raw"/>
+                            <source file={installation_media.to_str().unwrap()}/>
+                            <target dev="hdb" bus="ide"/>
+                            <boot order="1"/>
+                        </disk>
+                    }
+                }
                 <disk type="file" device="disk">
                     <driver name="qemu" type="qcow2" />
                         <source file={self.image_path} />
                     <target dev="hda" bus="ide" />
-                    <boot order="1" />
+                    <boot order="2" />
                 </disk>
                 <interface type="network">
                     <source network="default"/>
@@ -221,7 +287,7 @@ impl VM {
         }.to_string();
 
         let merged_xml = merge_xml(&base_xml, &self.extra_config, "domain");
-        // println!("{}", merged_xml);
+        // dbg!(&merged_xml);
 
         // Dom exists, shut it down
         if let Some(dom) = &domopt {
@@ -288,40 +354,42 @@ impl VM {
         let mut sship = String::new();
         let conn = self.conn();
         let domlookup = self.dom(&conn);
+        let mut dom = None;
 
         if let Err(error::Error { .. }) = domlookup {
             // Only create a new domain if it doesn't exist.
-            self.copy_build_image(&conn)?;
-            let dom = self.apply_xml(&conn, None)?;
-
-            println!("DEBUG: STARTED VM; Waiting for domain IP...");
-            sship = self.dom_ip(&dom)?;
-            println!("Found IP: {}", sship);
-        } else if let Ok(mut dom) = domlookup {
+            self.copy_build_image(&conn)?; // Don't build a NixOS if we're not building a NixOS guest
+            dom = Some(self.apply_xml(&conn, None)?);
+        } else if let Ok(mut dom_unw) = domlookup {
             // Domain already exists, apply XML and morph.
             self.image_path = self.deployment_image_path(&conn)?;
-            if self.dom_deployment_hash(&dom)? != self.hash_self() {
+            // Check against libvirt metadata for any hash changes and apply changes if necessary
+            if self.dom_deployment_hash(&dom_unw)? != self.hash_self() {
                 println!("Configuration change detected. Applying VM changes...");
-                dom = self.apply_xml(&conn, Some(dom))?;
-                println!("Waiting for IP...");
+                dom = Some(self.apply_xml(&conn, Some(dom_unw))?);
             } else {
-                println!("No configuration changes detected. Starting morph...");
-                sship = self.dom_ip(&dom)?;
+                dom = Some(dom_unw); // No changes, just assign the dom
             }
         }
 
         // Execute morph here
         // Overwrite SSH IP if the user set a static IP
 
-        println!(
-            "{:?}",
+        if self.nixos() {
+            println!("DEBUG: Waiting for IP...");
+            sship = self.dom_ip(&dom.unwrap())?;
+
+            println!("DEBUG: Starting morph...");
             morph::exec_morph(
                 &sship,
                 &self.ssh_pub_key_path,
                 &self.file_path,
-                &self.static_ips
-            )
-        );
+                &self.static_ips,
+            )?;
+        } else {
+            // nothing.
+            println!("INFO: Non-NixOS VM; doing nothing.")
+        }
 
         Ok(())
     }

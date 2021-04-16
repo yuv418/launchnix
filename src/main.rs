@@ -1,10 +1,11 @@
-#![recursion_limit = "256"]
-mod image;
+#![recursion_limit = "512"]
+mod nix_image;
 mod morph;
 mod nix;
 mod pathutils;
 mod vm;
 mod xml;
+mod qcow2;
 
 use std::fs::canonicalize;
 use std::path::PathBuf;
@@ -63,7 +64,7 @@ fn main() {
                     }
                 }
             };
-            match opt.action {
+            let action_result = match opt.action {
                 Action::Deploy => vm.apply().unwrap_or_else(|err| {
                         error_exit(&format!(
                             "Something went wrong when deploying your VM.\nDetailed information: {:#?}",
@@ -99,8 +100,9 @@ fn main() {
 
                     vm.ssh();
                 }
-            }
-        }
+            };
+            println!("\nThe action was completed successfully."); // We can print this if the program gets this far.
+        },
         Err(err) => error_exit(&format!(
             "The deployment file you provided doesn't exist, or we can't read it.\nDetailed information: {:#?}",
             err
