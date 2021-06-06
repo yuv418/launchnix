@@ -3,7 +3,7 @@
 
 A clone of NixOps (ONLY for libvirt) that won't be buggy and outdated (hopefully).
 
-As of now, this **doesn't work.** At all. (Launchnix is a WIP project)
+LaunchNix is a WIP project, but it does work. I use it on my servers.
 
 Launchnix will utilize `morph` behind-the-scenes after automatically creating virtual machines for you.
 
