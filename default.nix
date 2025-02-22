@@ -6,7 +6,7 @@ args@{
   },
   cargo2nix ? builtins.fetchGit {
     url = https://github.com/cargo2nix/cargo2nix;
-    ref = "master";
+    ref = "main";
   },
 }:
 
